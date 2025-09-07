@@ -116,3 +116,17 @@ python app.py
 **[6]** Or load predefined templates from the dropdown.
 
 **[7]** View the generated PDF flowchart in the right-side panel.
+
+**📸 Screenshots**
+
+**🖥️ Main Interface**
+
+![Main Interface](assets/Main_Interface.png)
+
+**📑 Generated Warehouse Flowchart**
+
+![Ware House](assets/Ware_House.png)
+
+**📑 Generated Top Side Flowchart**
+
+![Top Side](assets/Top_Side.png)
