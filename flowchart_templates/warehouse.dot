@@ -1,0 +1,78 @@
+digraph flowchart {
+    // --- Graph Attributes ---
+    rankdir="TB";
+    splines=ortho; // Use right-angle lines
+    nodesep=1.0;   // Widen horizontal separation
+    ranksep=1.2;   // Widen vertical separation
+    edge [fontname="Helvetica", fontsize=10];
+
+    // --- Node Definitions ---
+    // Default style for process boxes
+    node [shape=box, fontname="Helvetica"];
+    
+    // Subgraph for the numbered circles
+    subgraph numbers {
+        node [shape=circle, color=orange, fontcolor=black, style="", fixedsize=true, width=0.5];
+        edge [style=invis];
+        n10 [label="10"]; n20 [label="20"]; n30 [label="30"]; n40 [label="40"]; n50 [label="50"];
+        n10 -> n20 -> n30 -> n40 -> n50;
+    }
+
+    // Main flowchart nodes
+    start [label="START", shape=ellipse];
+    material_receipt [label="MATERIAL RECEIPT"];
+    incoming_inspection [label="INCOMING\nMATERIAL\nINSPECTION", shape=diamond]; 
+    mrb [label="MRB", shape=diamond, width=0.8, height=0.8, fixedsize=true];
+    rtv [label="RTV"];
+    warehouse [label="WARE HOUSE"];
+    kitting [label="KITTING"];
+    wip_feeder_loading [label="WIP FEEDER LOADING"];
+    A [label="A", shape=circle];
+    pts [label="PTS", shape=record];
+
+    // Invisible "dummy" nodes for routing arrows and labels
+    node [shape=point, width=0, height=0, label=""];
+    dummy_fail_1; dummy_pass_1; dummy_fail_2;
+    dummy_mrb_pass; 
+    // New node to extend the vertical line from MRB
+    dummy_vertical_extender; 
+
+
+    // --- Edge Definitions ---
+    // Main process flow
+    start -> material_receipt;
+    material_receipt -> incoming_inspection;
+
+    // Route arrows through dummy nodes for clarity
+    incoming_inspection -> dummy_fail_1 [dir=none];
+    dummy_fail_1 -> mrb [xlabel=<<B>FAIL</B>>];
+
+    incoming_inspection -> dummy_pass_1 [dir=none];
+    dummy_pass_1 -> warehouse [xlabel=<<B>PASS</B>>];
+    
+    mrb -> dummy_fail_2 [dir=none];
+    dummy_fail_2 -> rtv [xlabel=<<B>FAIL</B>>];
+
+    // Final, adjusted route for the MRB -> WAREHOUSE arrow
+    mrb -> dummy_vertical_extender [dir=none];
+    dummy_vertical_extender -> dummy_mrb_pass [dir=none];
+    dummy_mrb_pass -> warehouse [xlabel=<<B>PASS  </B>>];
+    
+    // Rest of the flow
+    warehouse -> kitting;
+    kitting -> wip_feeder_loading;
+    wip_feeder_loading -> A;
+    
+
+    // --- Layout and Ranking ---
+    // Force precise horizontal alignment for each level
+    { rank=same; n10; pts; material_receipt; }
+    { rank=same; n20; incoming_inspection; dummy_fail_1; mrb; dummy_fail_2; rtv; }
+    // Add the extender node on its own rank to create vertical space
+    { rank=same; dummy_vertical_extender; }
+    { rank=same; n30; dummy_pass_1; warehouse; dummy_mrb_pass; }
+    // Add an invisible edge to align the dummy nodes vertically under MRB
+    warehouse -> dummy_mrb_pass [style=invis];
+    { rank=same; n40; kitting; }
+    { rank=same; n50; wip_feeder_loading; }
+}
