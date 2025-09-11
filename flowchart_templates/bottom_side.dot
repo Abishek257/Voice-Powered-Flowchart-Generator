@@ -1,0 +1,105 @@
+digraph flowchart {
+    // --- Graph Attributes ---
+    rankdir="TB";
+    splines=ortho;
+    nodesep=0.8;
+    ranksep=1.5; // Increased vertical space
+    edge [fontname="Helvetica", fontsize=10];
+    node [fontname="Helvetica"];
+
+    // --- Node Definitions ---
+    // Subgraph for the numbered circles on the left
+    subgraph numbers {
+        node [shape=circle, color=orange, fontcolor=black, style="", fixedsize=true, width=0.5];
+        edge [style=invis];
+        n60; n70; n80; n90; n110; n120; n130;
+        n60 [label="60"]; n70 [label="70"]; n80 [label="80"];
+        n90 [label="90"]; n110 [label="110"]; n120 [label="120"]; n130 [label="130"];
+        n60 -> n70 -> n80 -> n90 -> n110 -> n120 -> n130;
+    }
+
+    // Main process nodes
+    node [shape=box];
+    B [shape=circle];
+    pcb_loading [label="PCB LOADING - BOTTOM SIDE"];
+    solder_printing [label="SOLDER PASTE PRINTING - BOTTOM SIDE"];
+    solder_inspection [label="SOLDER PASTE\nINSPECTION", shape=diamond];
+    smd_placement [label="SMD COMPONENT PLACEMENT"];
+    reflow [label="REFLOW"];
+    aoi [label="AOI", shape=diamond];
+    smt_fqa [label="SMT FQA", shape=diamond];
+    rework [label="REWORK"];
+    C [shape=circle];
+
+    // Feedback loop nodes
+    feedback [label="Feedback to process\nEngineering on misprint\nboard"];
+    clean [label="Clean the\nmisprint boards\n(Ultrasonic Cleaning)"];
+    scope_inspection [label="Scope\ninspection", shape=diamond];
+    smear_rework [label="smear board\nrework"];
+    
+    // Standalone info nodes & numbers from image
+    node [shape=record];
+    pts1 [label="PTS"]; sfdc1 [label="SFDC"];
+    sfdc2 [label="SFDC"];
+    // Minimized SFDC nodes
+    sfdc_in [label="SFDC IN", shape=box, width=0.6, height=0.3, fontsize=8]; 
+    sfdc_out [label="SFDC OUT", shape=box, width=0.7, height=0.3, fontsize=8];
+    n180 [label="180", shape=circle, color=orange];
+    sfdc_pass_box [label="SFDC"];
+    pts2 [label="PTS"];
+    sfdc3 [label="SFDC"];
+    sfdc_rework [label="SFDC"]; n220 [label="220", shape=circle, color=orange];
+    sfdc_fqa [label="SFDC"];
+
+    // Invisible nodes for routing
+    node [shape=point, width=0, height=0];
+    pass_route;
+    dummy_under_clean; // New node for vertical alignment
+
+    // --- Edge Definitions ---
+    B -> pcb_loading;
+    pcb_loading -> solder_printing;
+    solder_printing -> solder_inspection;
+    solder_inspection:s -> smd_placement [xlabel=<<B>PASS</B>>];
+    smd_placement -> reflow;
+    reflow -> aoi;
+    aoi:s -> smt_fqa [xlabel=<<B>PASS</B>>];
+    smt_fqa:s -> C [xlabel=<<B>PASS</B>>];
+    rework -> reflow;
+
+    // Rework and feedback loops
+    solder_inspection:e -> feedback:w [xlabel=<<B>Fail </B>>];
+    feedback -> clean;
+    clean -> scope_inspection;
+    scope_inspection:n -> pass_route [dir=none];
+    pass_route -> solder_printing [xlabel=<<B>PASS</B>>];
+    scope_inspection:s -> smear_rework:n [xlabel=<<B>FAIL</B>>];
+    smear_rework -> clean;
+    aoi:e -> rework [xlabel=<<B>FAIL</B>>];
+    smt_fqa:e -> rework [xlabel=<<B>FAIL</B>>];
+    
+    // Invisible edge to position the 180 group under the clean node
+    clean -> dummy_under_clean [style=invis];
+
+    // --- Layout and Ranking ---
+    { rank=same; n60; pts1; sfdc1; pcb_loading; }
+    { rank=same; n70; solder_printing; pass_route; sfdc_pass_box; }
+    { rank=same; n80; sfdc2; solder_inspection; feedback; scope_inspection; }
+    { rank=same; n90; pts2; smd_placement; clean; }
+    // New rank for the 180 group, placed under the clean node
+    { rank=same; dummy_under_clean; sfdc_in; n180; sfdc_out; }
+    { rank=same; n110; reflow; smear_rework; }
+    { rank=same; n120; sfdc3; aoi; rework; sfdc_rework; n220; }
+    { rank=same; n130; sfdc_fqa; smt_fqa; }
+    { rank=same; C; }
+
+    // --- Invisible Edges for Horizontal Ordering ---
+    n60 -> pts1 -> sfdc1 -> pcb_loading [style=invis];
+    n80 -> sfdc2 -> solder_inspection -> feedback -> scope_inspection [style=invis];
+    n90 -> pts2 -> smd_placement [style=invis];
+    // Position the 180 group horizontally
+    dummy_under_clean -> sfdc_in -> n180 -> sfdc_out [style=invis];
+    n120 -> sfdc3 -> aoi [style=invis];
+    n130 -> sfdc_fqa -> smt_fqa [style=invis];
+    pass_route -> sfdc_pass_box [style=invis];
+}
