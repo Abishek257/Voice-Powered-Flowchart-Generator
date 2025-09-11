@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-Powered Flowchart Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mic-active { animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        #log-container { max-height: 150px; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="flex h-screen">
+        <div class="w-1/3 bg-white p-8 shadow-lg flex flex-col space-y-6">
+            <div class="text-center">
+                <h1 class="text-3xl font-bold text-gray-900">Flowchart Generator</h1>
+                <p class="text-gray-500 mt-2">Build a flowchart with your voice.</p>
+            </div>
+
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700">User Email</label>
+                <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="user@example.com">
+            </div>
+
+            <div class="flex-grow flex flex-col">
+                <label for="transcript" class="block text-sm font-medium text-gray-700">Your Instruction</label>
+                <textarea id="transcript" rows="3" class="mt-1 block w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md shadow-sm"></textarea>
+            </div>
+            
+            <div class="border-t border-b border-gray-200 py-4">
+                <label for="template-select" class="block text-sm font-medium text-gray-700 text-center mb-2">Or Load a Template</label>
+                <select id="template-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">-- Select a Template --</option>
+                </select>
+            </div>
+
+            <div class="flex items-center justify-center">
+                <button id="micButton" class="w-20 h-20 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm5 10.143V16a1 1 0 11-2 0v-1.857A5.975 5.975 0 014 8V7a1 1 0 112 0v1a3.975 3.975 0 007.95 0V7a1 1 0 112 0v1a5.975 5.975 0 01-4 5.143z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+
+            <div class="flex space-x-4">
+                <button id="createButton" class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">New from Instruction</button>
+                <button id="addButton" class="w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500" disabled>Add to Flowchart</button>
+            </div>
+            
+            <div class="border-t border-gray-200 pt-4">
+                <h3 class="text-lg font-semibold text-gray-800">Log</h3>
+                <div id="log-container" class="mt-2 p-3 bg-gray-50 border rounded-md text-sm text-gray-600 overflow-y-auto space-y-1">
+                    <p>Waiting for instruction...</p>
+                </div>
+                 <p class="text-xs text-gray-500 mt-2">Session ID: <span id="session-id-display" class="font-mono">None</span></p>
+            </div>
+        </div>
+
+        <div class="w-2/3 bg-gray-200 p-4">
+            <iframe id="pdf-viewer" class="w-full h-full border-2 border-gray-300 rounded-lg" src=""></iframe>
+        </div>
+    </div>
+
+    <script>
+        const micButton = document.getElementById('micButton');
+        const createButton = document.getElementById('createButton');
+        const addButton = document.getElementById('addButton');
+        const transcriptArea = document.getElementById('transcript');
+        const emailInput = document.getElementById('email');
+        const logContainer = document.getElementById('log-container');
+        const sessionIdDisplay = document.getElementById('session-id-display');
+        const pdfViewer = document.getElementById('pdf-viewer');
+        const templateSelect = document.getElementById('template-select');
+
+        let sessionId = null;
+        let isListening = false;
+
+        // --- Logging ---
+        function addLog(message) {
+            const p = document.createElement('p');
+            p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.prepend(p);
+        }
+
+        // --- Speech Recognition ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            addLog("Error: Browser does not support Web Speech API. Try Chrome or Edge.");
+        }
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+
+        micButton.addEventListener('click', () => {
+            isListening ? recognition.stop() : recognition.start();
+        });
+        recognition.onstart = () => { isListening = true; micButton.classList.add('mic-active'); addLog('🎙️ Listening...'); };
+        recognition.onend = () => { isListening = false; micButton.classList.remove('mic-active'); addLog('🛑 Finished listening.'); };
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            transcriptArea.value = transcript;
+            addLog(`🎤 Transcribed: "${transcript}"`);
+        };
+        recognition.onerror = (event) => { addLog(`Error: ${event.error}`); };
+
+        // --- API Communication ---
+        async function sendRequest(endpoint, body) {
+            if (!emailInput.value) {
+                alert('Please enter your email address.');
+                return;
+            }
+            
+            addLog(`🚀 Sending request to ${endpoint}...`);
+            body.user_email = emailInput.value;
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    addLog(`✅ Success: ${result.message}`);
+                    if (result.session_id) {
+                        sessionId = result.session_id;
+                        sessionIdDisplay.textContent = sessionId;
+                        addButton.disabled = false;
+                    }
+                    pdfViewer.src = `/outputs/${result.output_filename}?t=${new Date().getTime()}`;
+                } else {
+                    addLog(`❌ Error: ${result.error}`);
+                }
+            } catch (error) {
+                addLog('❌ Network or server error. Check console.');
+                console.error('Error:', error);
+            }
+        }
+        
+        // --- Template Loading ---
+        async function loadTemplates() {
+            try {
+                const response = await fetch('/flowchart/templates');
+                if (!response.ok) throw new Error('Failed to load templates.');
+                
+                const templates = await response.json();
+                templates.forEach(template => {
+                    const option = document.createElement('option');
+                    option.value = template.id;
+                    option.textContent = template.name;
+                    templateSelect.appendChild(option);
+                });
+            } catch (error) {
+                addLog(`❌ Error loading templates: ${error.message}`);
+            }
+        }
+
+        templateSelect.addEventListener('change', () => {
+            const templateId = templateSelect.value;
+            if (!templateId) return;
+
+            if (!emailInput.value) {
+                alert('Please enter your email before loading a template.');
+                templateSelect.value = "";
+                return;
+            }
+            
+            transcriptArea.value = ""; // Clear instruction area
+            sendRequest('/flowchart/load_template', { template_id: templateId });
+            templateSelect.value = ""; // Reset dropdown
+        });
+
+        // --- Button Event Listeners ---
+        createButton.addEventListener('click', () => {
+            if (!transcriptArea.value) {
+                alert('Please provide a voice instruction or type in the text box before starting a new flowchart.');
+                return;
+            }
+            sessionId = null; 
+            sessionIdDisplay.textContent = "None";
+            addButton.disabled = true;
+            pdfViewer.src = "";
+            sendRequest('/flowchart/create', { prompt: transcriptArea.value });
+        });
+
+        addButton.addEventListener('click', () => {
+            if (!sessionId) {
+                alert('You must start a new flowchart or load a template first.');
+                return;
+            }
+            if (!transcriptArea.value) {
+                alert('Please provide an instruction to add to the flowchart.');
+                return;
+            }
+            sendRequest('/flowchart/add', { session_id: sessionId, prompt: transcriptArea.value });
+        });
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', loadTemplates);
+
+    </script>
+</body>
+</html>
